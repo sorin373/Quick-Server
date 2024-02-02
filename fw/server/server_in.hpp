@@ -10,6 +10,9 @@ namespace net
 
     class Socket
     {
+    private:
+        char *exec(const char *__prompt);
+        
     public:
         Socket() = default;
 
