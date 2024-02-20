@@ -35,6 +35,7 @@
 #include "../socket/socketUtils.hpp"
 
 #include <vector>
+#include <unordered_map>
 #include <mysql_connection.h>
 #include <mysql_driver.h>
 
@@ -61,10 +62,12 @@ namespace net
         class Database
         {
         public:
-            template <typename S> 
-            class table
+            class Table
             {
-                
+                // hash table to store column name and value
+                std::unordered_map<std::string, std::string> columns
+
+                Table(const std::unordered_map<std::string, std::string> &cols) : columns(cols) {}
             };
 
         private:
@@ -73,7 +76,8 @@ namespace net
             sql::Driver *driver;
 
         public:
-            database() = default;
+            Database(const char host[], const char user[], const char pass[], const char db[])
+               : hostname(host), username(user), password(pass), database(db), con(nullptr), driver(nullptr) {} 
 
             /**
              * @brief This function retrieves the SQL driver.
@@ -87,9 +91,13 @@ namespace net
              */
             sql::Connection *getCon(void) const noexcept;
 
+            std::vector<std::string> getTableNames(void) const;
+
+            std::vector<Table> fetchTableData(void);
+
             int database_easy_init(void);
 
-            ~database() = default;
+            ~Database() = default;
         };
 
     public:

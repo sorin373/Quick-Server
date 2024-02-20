@@ -1,7 +1,7 @@
 #include "serverUtils.hpp"
 #include "declarations.hpp"
 #include "interface/interface.hpp"
-#include "database/database.hpp"
+// #include "database/database.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -21,6 +21,94 @@ template class server<char>;
 
 template <typename T>
 volatile bool server<T>::SERVER_RUNNING = false;
+
+/* DB */
+
+template <typename T>
+server<T>::Database::~Database()
+{
+    this->con->close();
+    delete this->con;
+}
+
+template <typename T>
+sql::Connection *server<T>::Database::getCon(void) const noexcept
+{
+    return con;
+}
+
+template <typename T>
+sql::Driver *server<T>::Database::getDriver(void) const noexcept
+{
+    return driver;
+}
+
+template <typename T>
+std::vector<std::string> server<T>::Database::getTableNames(void) const
+{
+    if (this->con == nullptr || this->driver == nullptr)
+        return std::vector<std::string>();
+
+    std::string query = "SELECT table_name FROM information_schema.tables WHERE table_schema = " + std::string(this->database);
+
+    std::vector<std::string> tableNames;
+
+    sql::Statement *stmt = nullptr;
+    sql::ResultSet *res = nullptr;
+
+    stmt = this->con->createStatement();
+    res = stmt->executeQuery(query);
+
+    while (res->next())
+    {
+        sql::SQLString sqlstr;
+
+        sqlstr __tn = res->getString("table_name");
+        tableNames.pop_back(std::string(__tn));
+    }
+
+    delete stmt;
+    delete res;
+
+    return tableNames;
+}
+
+template <typename T>
+std::vector<typename server<T>::Database::Table> server<T>::Database::fetchTableData(void)
+{
+    if (this->con == nullptr || this->driver == nullptr)
+        return std::vector<Table>();
+
+    sql::Statement *stmt = nullptr;
+    sql::ResultSet *res = nullptr;
+
+    std::vector<Table> table;
+
+    std::vector<std::string> tableNames = getTableNames();
+
+    for (const std::string &__tn : tableNames)
+    {
+        std::unordered_map<std::string, std::string> rowData;
+        
+        std::string query = "SELECT * FROM " + __tn;
+
+        stmt = this->con->createStatement();
+        res = stmt->executeQuery(query);
+
+        while (res->next())
+            for (unsigned int i = 1; i <= numColumns; i++)
+            {
+                std::string columnName = metaData->getColumnLabel(i);
+                std::string columnValue = res->getString(i);
+                rowData[columnName] = columnValue;
+            }
+
+        delete res;
+        delete stmt;
+
+        table.emplace_back(Table(rowData));
+    }
+}
 
 /* server */
 
