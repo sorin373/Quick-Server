@@ -1,0 +1,2 @@
+extensions .css .png
+files /apology.html /login.html /changePassword.html /createAccount.html
