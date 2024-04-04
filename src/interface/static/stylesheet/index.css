@@ -31,16 +31,6 @@ html {
     text-align: center;
 }
 
-.ext-ref {
-    color: #fff !important;
-    background-color: #0d6efd !important;
-    border-color: #0d6efd !important;
-}
-
-.ext-ref:hover {
-    color: #fff !important;
-}
-
 .title-container a {
     width: fit-content;
     height: fit-content;
@@ -66,77 +56,6 @@ html {
     color: rgb(255, 255, 255);
     background-color: #9ba6b1;
     border-radius: 5px;
-}
-
-th {
-    text-align: center;
-}
-
-thead {
-    background-color: #dfe4e9;
-    border-radius: 0;
-    color: rgb(66, 66, 66);
-    z-index: 1;
-    position: sticky;
-    top: 0;
-}
-
-table {
-    width: 100%;
-    max-width: 1400px;
-    text-align: center;
-}
-
-thead th {
-    font-size: 17pt;
-    text-transform: uppercase;
-    font-weight: 600;
-    color: rgb(66, 66, 66);
-}
-
-#td-btn {
-    display: flex;
-    flex-direction: row;
-}
-
-button {
-    border-style: none;
-    background-color: transparent;
-}
-
-button:hover {
-    border-radius: 5px;
-    color: #005ed8;
-}
-
-tbody tr {
-    color: rgb(66, 66, 66);
-}
-
-.left-column {
-    border-right: solid 2px;
-}
-
-.right-column {
-    border-left: solid 2px;
-}
-
-#add-button {
-    width: fit-content;
-    padding: 0.5rem;
-    font-weight: 600;
-    border: solid 0.1px rgb(153, 153, 153);
-    border-radius: 5px;
-    color: rgb(65, 64, 64);
-}
-
-#addFileForm {
-    margin: auto;
-    padding: 0.7rem;
-    margin-top: 3rem;
-    background-color: #ecedee;
-    border-radius: 10px;
-    box-shadow: 0px 0px 15px rgba(0, 0, 0, 0.3);
 }
 
 .footer {

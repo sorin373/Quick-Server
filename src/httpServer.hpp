@@ -24,7 +24,7 @@
  *                OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  *                SOFTWARE.
  * 
- *  @brief        This C++ header file includes essential header files used for the server implementation.
+ *  @brief        This C++ header file includes essential header files used for the Server implementation.
  * 
  */
 
@@ -32,9 +32,9 @@
 #define __HTTP_SERVER_HPP__
 
 // This C++ header file contains important extern variable declarations and helper functions prototypes
-#include "server/declarations.hpp"
+#include "server/global.hpp"
 
-// This C++ header file contains the server class prototype
+// This C++ header file contains the Server class prototype
 #include "server/serverUtils.hpp"
 
 #endif // __HTTP_SERVER_HPP__

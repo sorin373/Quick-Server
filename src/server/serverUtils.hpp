@@ -24,7 +24,7 @@
  *                OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  *                SOFTWARE.
  *
- *  @brief        This C++ header file declares the 'server' class which contains core functionalites of an HTTP server.
+ *  @brief        This C++ header file declares the 'Server' class which contains core functionalites of an HTTP Server.
  *
  */
 
@@ -34,50 +34,98 @@
 #include "interface/interface.hpp"
 #include "../socket/socketUtils.hpp"
 
-#include <vector>
-#include <unordered_map>
 #include <mysql_connection.h>
 #include <mysql_driver.h>
+#include <vector>
+#include <atomic>
 
-#define DEFAULT_ROUTE "interface/login.html"
-#define ROOT          "interface"
-/**
- *  @brief 'temp.bin' is a @file that is created when uploading a file to the server
- *         After being written the file is correctly formated and copied. Finally temp.bin is removed.
- */
-#define BINARY_FILE_TEMP_PATH "interface/storage/temp.bin"
-#define LOCAL_STORAGE_PATH    "interface/storage/"
-#define INDEX_HTML_PATH       "interface/index.html"
-#define LENGHT                256
+enum : short
+{
+    LENGHT = 256,
+    SQL_LENGHT = 65
+};
 
 namespace net
 {
-    // Class implementing core functionalities of an HTTP server
-    template <typename T>
-    class server
+    /**
+     *  @brief 'temp.bin' is a file that is created when uploading a file to the Server
+     *         After being written the file is correctly formated and copied. Finally temp.bin is removed.
+     */
+    constexpr char BINARY_FILE_TEMP_PATH[] = "interface/storage/temp.bin";
+    constexpr char LOCAL_STORAGE_PATH[] = "interface/storage/";
+    constexpr char INDEX_HTML_PATH[] = "interface/index.html";
+    constexpr char IGNORE[] = "ignore.txt";
+
+    /**
+     * @brief This class stores all file names or extensions that are ignored when the auth checked is performed. 
+     *        For example, when not logged in, the user must be able to access the login page
+     *        These values are stored in the file 'ignore.txt'
+     * @attention Any data added in this file will be ignored by the user auth checking system
+    */
+    class Ignore
     {
     public:
-        static volatile bool SERVER_RUNNING;
+        class node
+        {
+        private:
+            char *pageName;
+
+        public:
+            node *next, *prev;
+
+            node(const char *pageName);
+            char *getPageName(void) const noexcept;
+            ~node();
+        };
+
+        node *head, *tail;
+
+    public:
+        Ignore();
+
+        node *getHead(void) const noexcept;
+        node *getTail(void) const noexcept;
+
+        void fetchPages(const char *pageName);
+
+        ~Ignore();
+    };
+
+    // Class implementing core functionalities of an HTTP Server
+    template <typename T>
+    class Server
+    {
+    public:
         // Forward declaration for the class implementing core functionalities of database. However the tables are stored in the interface class.
-        class Database
+        class db
         {
         public:
-            class Table
+            // Nested class describing the database credentials object.
+            class db_cred
             {
-                // hash table to store column name and value
-                std::unordered_map<std::string, std::string> columns
+            private:
+                char *hostname, *username, *password, *database;
 
-                Table(const std::unordered_map<std::string, std::string> &cols) : columns(cols) {}
+            public:
+                db_cred(const char *hostname, const char *username, const char *password, const char *database);
+
+                char *getHostname(void) const noexcept;
+                char *getUsername(void) const noexcept;
+                char *getPassword(void) const noexcept;
+                char *getDatabase(void) const noexcept;
+
+                static int getCred(char *hostname, char *username, char *password, char *database);
+
+                ~db_cred();
             };
 
         private:
-            char hostname[65], username[65], password[65], database[65];
+            class db_cred *dbCred; // Pointer to the 'db_cred' object.
             sql::Connection *con;
             sql::Driver *driver;
 
         public:
-            Database(const char host[], const char user[], const char pass[], const char db[])
-               : hostname(host), username(user), password(pass), database(db), con(nullptr), driver(nullptr) {} 
+            db(sql::Driver *driver, sql::Connection *con, const char *hostname, const char *username, const char *password, const char *database);
 
             /**
              * @brief This function retrieves the SQL driver.
@@ -91,28 +139,29 @@ namespace net
              */
             sql::Connection *getCon(void) const noexcept;
 
-            std::vector<std::string> getTableNames(void) const;
+            /**
+             * @brief This function retrieves the database credentials.
+             * @return Returns a pointer to the database credentials object.
+             */
+            class db_cred *getDB_Cred(void) const noexcept;
 
-            std::vector<Table> fetchTableData(void);
-
-            int database_easy_init(void);
-
-            ~Database() = default;
+            ~db();
         };
 
     public:
-        // Class describing a network socket that has been accepted in a TCP server
+        // Class describing a network socket that has been accepted in a TCP Server
         class acceptedSocket
         {
         private:
             struct sockaddr_in ipAddress;
-            int acceptedSocketFileDescriptor, error;
+            int acceptedSocketFD, error;
 
         public:
             acceptedSocket() = default;
 
-            void getAcceptedSocket(const struct sockaddr_in ipAddress, const int acceptedSocketFileDescriptor, const int error);
-            int getAcceptedSocketFileDescriptor(void) const noexcept;
+            void socketCleanup(void) noexcept;
+            void getAcceptedSocket(const struct sockaddr_in ipAddress, const int acceptedSocketFD, const int error);
+            int getAcceptedSocketFD(void) const noexcept;
             int getError(void) const noexcept;
             struct sockaddr_in getIpAddress(void) const noexcept;
 
@@ -120,127 +169,132 @@ namespace net
         };
 
     private:
-        std::vector<struct acceptedSocket> connectedSockets; // Vector that stores all the connected sockets.
-        class database *db;                                  // Pointer to the 'database' object.
-        class interface::user *__user;                       // Pointer to the 'user' object.
+        static std::atomic<bool> SERVER_RUNNING;
+
+        Ignore ignore;                                      // double linked list which contains pages and file extensions that must be ignore when checking for page authorization
+
+        std::vector<class acceptedSocket> connectedSockets; // Vector that stores all the connected sockets.
+        class interface::user *__user;                      // Pointer to the 'user' object.
+        class db *db;                                       // Pointer to the 'database' object.
 
         /**
          * @brief This function handles client connections. It creates a new 'acceptedSocket' object for every incoming connection using the new operator.
-         * @param acceptedSocketFileDescriptor The file descriptor for the accepted socket connection used when seding the HTTP response.
+         * @param acceptedSocketFD The file descriptor for the accepted socket connection used when seding the HTTP response.
          */
-        void handleClientConnections(int serverSocketFileDescriptor);
+        void handleClientConnections(int serverSocketFD, std::atomic<bool> &server_running);
 
         /**
          * @brief This function crestes a thread for an accepted socket. It creates a new 'acceptedSocket' object for every incoming connection using the new operator.
-         * @param acceptedSocket Object describing a network socket that has been accepted in a TCP server.
+         * @param acceptedSocket Object describing a network socket that has been accepted in a TCP Server.
          */
-        void receivedDataHandlerThread(class acceptedSocket *socket);
-
-        // /**
-        //  * @brief If a file has been uploaded to the server this function performs post receive file formating on the 'temp.bin' file.
-        //  * @return Returns 0 on success, 1 for errors.
-        //  */
-        // int formatFile(const std::string fileName);
+        void receivedDataHandlerThread(const class acceptedSocket socket);
 
         /**
-         * @brief If a file has been uploaded to the server this function performs post receive operations such as:
-         *        file formatting, adding the file metadata to the database and clearing the file from the queue.
-         * @param acceptedSocketFileDescriptor The file descriptor for the accepted socket connection used when seding the HTTP response.
+         * @brief If a file has been uploaded to the Server this function performs post receive file formating on the 'temp.bin' file.
+         * @return Returns 0 on success, 1 for errors.
          */
-        void postRecv(const int acceptedSocketFileDescriptor);
+        int formatFile(const std::string fileName);
 
-        static void consoleListener(void);
+        /**
+         * @brief If a file has been uploaded to the Server this function performs post receive operations such as:
+         *        file formatting, adding the file metadata to the database and clearing the file from the queue.
+         * @param acceptedSocketFD The file descriptor for the accepted socket connection used when seding the HTTP response.
+         */
+        void postRecv(const int acceptedSocketFD);
+
+        void consoleListener(std::atomic<bool> &server_running);
 
     public:
-        server();
+        Server();
+
+        inline int read_ignore_data(void);
 
         /*
          * This function does the following:
-         *   - Sets the server status as running
+         *   - Sets the Server status as running
          *   - Deletes content written in index.html
          *   - Creates a detached thread that handles client connections
          *   - Creates a thread that listens for console input
          */
-        void __SERVER_INIT__(int serverSocketFileDescriptor);
+        void server_easy_init(int serverSocketFD);
 
         /*
          * This function binds a socket to a specific address and port. Return 0 for success, -1 for errors:
          *   - Default address: 127.0.0.1
          *   - Default port:    8080
          */
-        int bindServer(int serverSocketFileDescriptor, struct sockaddr_in *serverAddress);
+        int bindServer(int serverSocketFD, struct sockaddr_in *serverAddress);
 
         /*
          * This function gets the database credentials and the establishes connection. Returns 0 on success, 1 for errors.
          *   - It allocates memory for the 'database' object class using the new operator (memory release is handled automatically)
          *   - It allocates memory for the 'user' object class using the new operator (memory release is handled automatically)
          */
-        int __database_init__(void);
-
-        // This function retrieves the "user" table from the database
-        void SQLfetchUserTable(void);
-
-        // This function retrieves the "file" table from the database
-        void SQLfetchFileTable(void);
-
-        /**
-         * @brief This function adds the files uploaded to the server.
-         * @return Returns 0 on success, 1 for errors.
-         */
-        int addToFileTable(const char *fileName, const int fileSize);
+        int database_easy_init(void);
 
         // This function accepts client connections.
-        void acceptConnection(const int serverSocketFileDescriptor, class acceptedSocket *__acceptedSocket);
+        bool acceptConnection(const int serverSocketFD, class acceptedSocket &acceptedSocket);
 
         // This function receives the data sent by a client.
-        void receivedDataHandler(class acceptedSocket *socket);
+        void receivedDataHandler(const class acceptedSocket socket);
 
         /**
          * @brief This function handles HTTP POST requests.
          *
          * @param buffer Contains the request data.
-         * @param acceptedSocketFileDescriptor The file descriptor for the accepted socket connection used when seding the HTTP response.
-         * @param __bytesReceived The size of the current buffer
+         * @param acceptedSocketFD The file descriptor for the accepted socket connection used when seding the HTTP response.
+         * @param bytesReceived The size of the current buffer
          *
          * @return Returns 0 on success, 1 for errors.
          */
-        int POSTrequestsHandler(T *buffer, int acceptedSocketFileDescriptor, ssize_t __bytesReceived);
+        int POSTrequestsHandler(T *buffer, int acceptedSocketFD, ssize_t bytesReceived);
 
         /**
          * @brief This function handles HTTP GET requests.
          *
          * @param buffer Contains the request data.
-         * @param acceptedSocketFileDescriptor The file descriptor for the accepted socket connection used when seding the HTTP response.
+         * @param acceptedSocketFD The file descriptor for the accepted socket connection used when seding the HTTP response.
          *
          * @return Returns 0 on success, 1 for errors.
          */
-        int GETrequestsHandler(T *buffer, int acceptedSocketFileDescriptor);
+        int GETrequestsHandler(T *buffer, int acceptedSocketFD);
 
         /**
          * @brief This function decides whether the HTTP request is a POST or GET request.
          *
          * @param buffer Contains the request data.
-         * @param acceptedSocketFileDescriptor The file descriptor for the accepted socket connection used when seding the HTTP response.
-         * @param __bytesReceived The size of the current buffer
+         * @param acceptedSocketFD The file descriptor for the accepted socket connection used when seding the HTTP response.
+         * @param bytesReceived The size of the current buffer
          *
          * @return Returns 0 on success, 1 for errors.
          */
-        int HTTPrequestsHandler(T *buffer, int acceptedSocketFileDescriptor, ssize_t __bytesReceived);
+        int HTTPrequestsHandler(T *buffer, int acceptedSocketFD, ssize_t bytesReceived);
 
         // This function retrieves a vector where the connected clients are stored
         std::vector<class acceptedSocket> getConnectedSockets(void) const noexcept;
 
-        // This function retrieves the status of the server. Returns true if the server is running, otherwise false.
+        // This function retrieves the status of the Server. Returns true if the Server is running, otherwise false.
         bool getServerStatus(void) const noexcept;
 
+        /**
+         *  @brief This function retrives the ignore class variable. It stores the file names and extensions which shall be ignored by the user auth check
+         *  @attention Check class documentation for more information
+         */
+        Ignore getIgnore(void) const noexcept;
+        
+        // This function changes the value of the SERVER_RUNNING var, ultimately stopping the server
+        void haltServer(void) noexcept;
+
         // This function retrieves a pointer to the "database" object
-        class database *getSQLdatabase(void) const noexcept;
+        class db *getSQLdatabase(void) const noexcept;
 
         // This function retrieves a pointer to the "user" object
         class interface::user *getUser(void) const noexcept;
 
-        ~server();
+        ~Server();
     };
+
+    int INIT(int argc, char *argv[]);
 };
 
 #endif // __SERVER_UTILS_HPP__
